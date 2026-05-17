@@ -128,6 +128,28 @@ CREATE TABLE IF NOT EXISTS audit_log (
     person_id   INTEGER,
     details     TEXT
 );
+
+CREATE TABLE IF NOT EXISTS albums (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT    NOT NULL,
+    description     TEXT    DEFAULT '',
+    cover_photo_id  INTEGER,
+    date_created    TEXT    DEFAULT CURRENT_TIMESTAMP,
+    date_modified   TEXT    DEFAULT CURRENT_TIMESTAMP,
+    sort_order      INTEGER DEFAULT 0,
+    FOREIGN KEY (cover_photo_id) REFERENCES photos(id)
+);
+CREATE TABLE IF NOT EXISTS album_photos (
+    album_id    INTEGER NOT NULL,
+    photo_id    INTEGER NOT NULL,
+    date_added  TEXT    DEFAULT CURRENT_TIMESTAMP,
+    sort_order  INTEGER DEFAULT 0,
+    PRIMARY KEY (album_id, photo_id),
+    FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
+    FOREIGN KEY (photo_id) REFERENCES photos(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_album_photos_album ON album_photos(album_id);
+CREATE INDEX IF NOT EXISTS idx_album_photos_photo ON album_photos(photo_id);
 """
 
 
@@ -209,6 +231,11 @@ class Database:
                     "EXISTS (SELECT 1 FROM faces f WHERE f.photo_id=p.id AND f.person_id=?)"
                 )
                 params.append(filters["person_id"])
+            if filters.get("album_id"):
+                conditions.append(
+                    "EXISTS (SELECT 1 FROM album_photos ap WHERE ap.photo_id=p.id AND ap.album_id=?)"
+                )
+                params.append(filters["album_id"])
         where = " AND ".join(conditions)
         sql = f"SELECT p.* FROM photos p WHERE {where} ORDER BY COALESCE(p.exif_date, p.date_added) DESC"
         return self._conn().execute(sql, params).fetchall()
@@ -422,7 +449,79 @@ class Database:
                 "  SELECT group_id FROM duplicate_members GROUP BY group_id HAVING COUNT(*) > 1"
                 ")"
             ).fetchone()[0],
+            "total_albums": conn.execute("SELECT COUNT(*) FROM albums").fetchone()[0],
         }
+
+    # ── Albums ───────────────────────────────────────────────────────────────────
+
+    def create_album(self, name: str, description: str = "") -> int:
+        conn = self._conn()
+        cur = conn.execute("INSERT INTO albums (name, description) VALUES (?, ?)", (name, description))
+        conn.commit()
+        return cur.lastrowid
+
+    def get_all_albums(self) -> list:
+        return self._conn().execute(
+            "SELECT a.*, COUNT(ap.photo_id) as photo_count "
+            "FROM albums a LEFT JOIN album_photos ap ON a.id=ap.album_id "
+            "GROUP BY a.id ORDER BY a.sort_order ASC, a.name ASC"
+        ).fetchall()
+
+    def get_album(self, album_id: int):
+        return self._conn().execute("SELECT * FROM albums WHERE id=?", (album_id,)).fetchone()
+
+    def update_album(self, album_id: int, **kwargs):
+        conn = self._conn()
+        kwargs["date_modified"] = datetime.now().isoformat()
+        sets = ", ".join(f"{k}=?" for k in kwargs)
+        conn.execute(f"UPDATE albums SET {sets} WHERE id=?", list(kwargs.values()) + [album_id])
+        conn.commit()
+
+    def delete_album(self, album_id: int):
+        conn = self._conn()
+        conn.execute("DELETE FROM albums WHERE id=?", (album_id,))
+        conn.commit()
+
+    def add_photo_to_album(self, album_id: int, photo_id: int):
+        conn = self._conn()
+        conn.execute(
+            "INSERT OR IGNORE INTO album_photos (album_id, photo_id) VALUES (?, ?)",
+            (album_id, photo_id),
+        )
+        conn.commit()
+        # Set cover if album has none
+        album = self.get_album(album_id)
+        if album and not album["cover_photo_id"]:
+            conn.execute("UPDATE albums SET cover_photo_id=? WHERE id=?", (photo_id, album_id))
+            conn.commit()
+
+    def remove_photo_from_album(self, album_id: int, photo_id: int):
+        conn = self._conn()
+        conn.execute("DELETE FROM album_photos WHERE album_id=? AND photo_id=?", (album_id, photo_id))
+        conn.commit()
+
+    def get_album_photos(self, album_id: int, limit: int = 0, offset: int = 0) -> list:
+        sql = (
+            "SELECT p.* FROM photos p "
+            "JOIN album_photos ap ON ap.photo_id=p.id "
+            "WHERE ap.album_id=? AND p.is_missing=0 "
+            "ORDER BY ap.sort_order ASC, ap.date_added DESC"
+        )
+        if limit:
+            sql += f" LIMIT {limit} OFFSET {offset}"
+        return self._conn().execute(sql, (album_id,)).fetchall()
+
+    def get_albums_for_photo(self, photo_id: int) -> list:
+        return self._conn().execute(
+            "SELECT a.* FROM albums a JOIN album_photos ap ON a.id=ap.album_id WHERE ap.photo_id=?",
+            (photo_id,),
+        ).fetchall()
+
+    def count_album_photos(self, album_id: int) -> int:
+        return self._conn().execute(
+            "SELECT COUNT(*) FROM album_photos ap JOIN photos p ON p.id=ap.photo_id "
+            "WHERE ap.album_id=? AND p.is_missing=0", (album_id,)
+        ).fetchone()[0]
 
     # ── Audit ────────────────────────────────────────────────────────────────
 
