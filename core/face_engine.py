@@ -91,9 +91,11 @@ class FaceEngine:
         self._person_models: dict[int, PersonModel] = {}
 
     def rebuild_person_models(self):
-        """Load all confirmed embeddings from DB and rebuild in-memory models."""
-        if not FACE_RECOGNITION_AVAILABLE:
-            return
+        """Load all confirmed embeddings from DB and rebuild in-memory models.
+
+        This works independently of face_recognition — matching only needs numpy.
+        Detection (detect_faces_in_photo) requires dlib, but matching does not.
+        """
         raw = self.db.get_all_confirmed_embeddings()
         people = {p["id"]: p for p in self.db.get_all_people(include_hidden=True)}
         models = {}
@@ -147,8 +149,11 @@ class FaceEngine:
         return results
 
     def suggest_person(self, embedding_blob: bytes) -> tuple[int | None, float]:
-        """Return (person_id, confidence) for the best matching person, or (None, 0)."""
-        if not FACE_RECOGNITION_AVAILABLE or embedding_blob is None:
+        """Return (person_id, confidence) for the best matching person, or (None, 0).
+
+        Matching only requires numpy — works even without face_recognition installed.
+        """
+        if embedding_blob is None:
             return None, 0.0
 
         embedding = decode_embedding(embedding_blob)
@@ -170,11 +175,9 @@ class FaceEngine:
     def cluster_unassigned_faces(self, distance_threshold: float = 0.55) -> dict[int, list[int]]:
         """Group unassigned face IDs into clusters using single-linkage.
 
-        Returns {cluster_label: [face_id, ...]}  (label -1 = noise/outliers).
+        Returns {cluster_label: [face_id, ...]} — works without face_recognition.
+        Clustering only needs numpy/scipy, not dlib.
         """
-        if not FACE_RECOGNITION_AVAILABLE:
-            return {}
-
         rows = self.db.get_unassigned_faces()
         if len(rows) < 2:
             return {0: [r["id"] for r in rows]} if rows else {}

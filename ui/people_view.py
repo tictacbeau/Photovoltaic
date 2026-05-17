@@ -212,15 +212,19 @@ class PeopleView(QWidget):
     def _on_person_selected(self, row: int):
         if row < 0:
             return
-        item = self.person_list.item(row)
-        if not item:
-            return
-        person_id = item.data(Qt.ItemDataRole.UserRole)
-        person = self.db.get_person(person_id)
-        if not person:
-            return
-        self.person_card.set_person(person)
-        self._load_face_grid(person_id)
+        try:
+            item = self.person_list.item(row)
+            if not item:
+                return
+            person_id = item.data(Qt.ItemDataRole.UserRole)
+            person = self.db.get_person(person_id)
+            if not person:
+                return
+            self.person_card.set_person(person)
+            self._load_face_grid(person_id)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).exception("Error loading person %s", row)
 
     def _load_face_grid(self, person_id: int):
         _clear_layout(self.face_grid)
@@ -475,8 +479,9 @@ class PersonCard(QFrame):
         self._accuracy_label.setText(f"Match accuracy: {accuracy_pct}%  (threshold {threshold:.2f})")
         self._btn_rename.setEnabled(True)
         self._btn_merge.setEnabled(True)
-        if person.get("representative_thumbnail") and os.path.exists(person["representative_thumbnail"]):
-            px = QPixmap(person["representative_thumbnail"]).scaled(
+        thumb = person["representative_thumbnail"]
+        if thumb and os.path.exists(thumb):
+            px = QPixmap(thumb).scaled(
                 60, 60, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                 Qt.TransformationMode.SmoothTransformation,
             )
@@ -518,7 +523,7 @@ class FaceCard(QFrame):
         thumb_label.setFixedSize(FACE_THUMB_SIZE, FACE_THUMB_SIZE)
         thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         thumb_label.setStyleSheet("border-radius: 6px; background: #111;")
-        thumb_path = face_row.get("thumbnail_path") if isinstance(face_row, dict) else face_row["thumbnail_path"]
+        thumb_path = face_row["thumbnail_path"]
         if thumb_path and os.path.exists(thumb_path):
             px = QPixmap(thumb_path).scaled(
                 FACE_THUMB_SIZE, FACE_THUMB_SIZE,

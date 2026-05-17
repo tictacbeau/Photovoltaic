@@ -254,10 +254,10 @@ class Database:
         conn.commit()
 
     def merge_people(self, source_id: int, target_id: int):
-        """Merge all faces from source person into target person."""
+        """Merge all faces from source person into target person, preserving confirmed status."""
         conn = self._conn()
         conn.execute(
-            "UPDATE faces SET person_id=?, is_confirmed=0 WHERE person_id=?",
+            "UPDATE faces SET person_id=? WHERE person_id=?",
             (target_id, source_id),
         )
         conn.execute("DELETE FROM people WHERE id=?", (source_id,))
@@ -317,8 +317,12 @@ class Database:
 
     def ignore_face(self, face_id: int):
         conn = self._conn()
+        # Capture person_id before clearing it so we can refresh their stats
+        row = conn.execute("SELECT person_id FROM faces WHERE id=?", (face_id,)).fetchone()
         conn.execute("UPDATE faces SET is_ignored=1, person_id=NULL WHERE id=?", (face_id,))
         conn.commit()
+        if row and row["person_id"]:
+            self.refresh_person_stats(row["person_id"])
 
     def get_all_confirmed_embeddings(self) -> dict:
         """Return {person_id: [embedding_bytes, ...]} for all confirmed faces."""
@@ -412,7 +416,12 @@ class Database:
             "unassigned_faces": conn.execute(
                 "SELECT COUNT(*) FROM faces WHERE person_id IS NULL AND is_ignored=0"
             ).fetchone()[0],
-            "duplicate_groups": conn.execute("SELECT COUNT(*) FROM duplicate_groups").fetchone()[0],
+            # Only groups that actually have duplicates (>1 member)
+            "duplicate_groups": conn.execute(
+                "SELECT COUNT(*) FROM ("
+                "  SELECT group_id FROM duplicate_members GROUP BY group_id HAVING COUNT(*) > 1"
+                ")"
+            ).fetchone()[0],
         }
 
     # ── Audit ────────────────────────────────────────────────────────────────
