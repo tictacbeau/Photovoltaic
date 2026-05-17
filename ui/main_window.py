@@ -17,6 +17,8 @@ from core.database import Database
 from core.face_engine import FaceEngine
 from ui.scan_view import ScanView
 from ui.people_view import PeopleView
+from ui.gallery_view import GalleryView
+from ui.album_view import AlbumView
 
 log = logging.getLogger(__name__)
 
@@ -70,15 +72,20 @@ class MainWindow(QMainWindow):
         root.addWidget(self.stack, 1)
 
         # Pages
-        self.scan_view = ScanView(self.db, self.thumb_dir)
+        self.gallery_view = GalleryView(self.db)
+        self.album_view = AlbumView(self.db)
         self.people_view = PeopleView(self.db, self.face_engine)
+        self.scan_view = ScanView(self.db, self.thumb_dir)
 
-        self.stack.addWidget(self.scan_view)   # index 0
-        self.stack.addWidget(self.people_view) # index 1
+        self.stack.addWidget(self.gallery_view)  # index 0
+        self.stack.addWidget(self.album_view)    # index 1
+        self.stack.addWidget(self.people_view)   # index 2
+        self.stack.addWidget(self.scan_view)     # index 3
 
         # Wire sidebar
         self.sidebar.nav_clicked.connect(self._navigate)
         self.sidebar.select(0)
+        self.gallery_view.refresh()
 
         # Wire scan completion → refresh people
         self.scan_view.scan_complete.connect(self._on_scan_complete)
@@ -92,7 +99,11 @@ class MainWindow(QMainWindow):
 
     def _navigate(self, index: int):
         self.stack.setCurrentIndex(index)
-        if index == 1:
+        if index == 0:
+            self.gallery_view.refresh()
+        elif index == 1:
+            self.album_view.refresh()
+        elif index == 2:
             self.people_view.refresh()
 
     # ── Events ────────────────────────────────────────────────────────────────
@@ -111,9 +122,13 @@ class MainWindow(QMainWindow):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply == QMessageBox.StandardButton.Yes:
-                self.sidebar.select(1)
-                self._navigate(1)
+                self.sidebar.select(2)
+                self._navigate(2)
                 self.people_view._start_face_scan()
+        else:
+            # Navigate to gallery to show newly scanned photos
+            self.sidebar.select(0)
+            self._navigate(0)
 
     def _save_scan_folders(self):
         self.config["scan_folders"] = self.scan_view.get_folders()
@@ -171,8 +186,10 @@ class _Sidebar(QFrame):
     nav_clicked = Signal(int)
 
     NAV_ITEMS = [
-        ("⬤ Scan", "Scanner\nFind & catalog photos", 0),
-        ("◉ People", "People\nFaces & recognition", 1),
+        ("🖼 Gallery", "Gallery\nBrowse all photos", 0),
+        ("🗂 Albums", "Albums\nOrganize into collections", 1),
+        ("◉ People", "People\nFaces & recognition", 2),
+        ("⬤ Scan", "Scanner\nFind & catalog photos", 3),
     ]
 
     def __init__(self, parent=None):
