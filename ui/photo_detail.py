@@ -239,7 +239,7 @@ class PhotoDetailDialog(QDialog):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if hasattr(self, '_current_photo_id'):
+        if hasattr(self, '_current_photo_id') and hasattr(self, 'img_label'):
             row = self.db.get_photo(self._current_photo_id)
             if row:
                 path = row["file_path"]

@@ -2,14 +2,15 @@
 import os
 from PyQt6.QtWidgets import QListWidget, QListWidgetItem, QAbstractItemView
 from PyQt6.QtCore import Qt, QSize, QRunnable, QThreadPool, QObject, pyqtSignal
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtGui import QIcon, QPixmap, QImage
 from utils.image_utils import placeholder_pixmap
 
 THUMB_SIZE = 180
 
 
 class _ThumbSignals(QObject):
-    loaded = pyqtSignal(int, QPixmap)
+    # QImage is thread-safe; QPixmap is NOT — convert only in main thread
+    loaded = pyqtSignal(int, QImage)
 
 
 class _ThumbTask(QRunnable):
@@ -22,26 +23,30 @@ class _ThumbTask(QRunnable):
 
     def run(self):
         try:
-            px = QPixmap(self.thumb_path)
-            if not px.isNull():
-                px = px.scaled(THUMB_SIZE, THUMB_SIZE, Qt.AspectRatioMode.KeepAspectRatio,
-                               Qt.TransformationMode.SmoothTransformation)
-                self.signals.loaded.emit(self.photo_id, px)
+            img = QImage(self.thumb_path)
+            if not img.isNull():
+                img = img.scaled(
+                    THUMB_SIZE, THUMB_SIZE,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                self.signals.loaded.emit(self.photo_id, img)
         except Exception:
             pass
 
 
 class PhotoGrid(QListWidget):
     """Scrollable photo grid with background thumbnail loading."""
-    photo_activated = pyqtSignal(int)     # double-click: photo_id
-    selection_changed = pyqtSignal(int)   # single-click: photo_id (-1 if none)
+    photo_activated = pyqtSignal(int)    # double-click → photo_id
+    selection_changed = pyqtSignal(int)  # single-click → photo_id (-1 if none)
 
     def __init__(self, thumb_size: int = THUMB_SIZE, parent=None):
         super().__init__(parent)
         self._thumb_size = thumb_size
         self._pool = QThreadPool.globalInstance()
         self._placeholder = QIcon(placeholder_pixmap((thumb_size, thumb_size)))
-        self._id_map: dict[int, int] = {}   # photo_id -> row index
+        self._id_map: dict[int, int] = {}      # photo_id → row index
+        self._pending_signals: dict[int, _ThumbSignals] = {}  # keep alive until delivered
         self._setup()
 
     def _setup(self):
@@ -65,6 +70,7 @@ class PhotoGrid(QListWidget):
     def set_photos(self, rows: list):
         self.clear()
         self._id_map.clear()
+        self._pending_signals.clear()
         for idx, row in enumerate(rows):
             self._add_item(row, idx)
 
@@ -81,20 +87,24 @@ class PhotoGrid(QListWidget):
         item.setToolTip(row["file_path"])
         self.addItem(item)
         self._id_map[pid] = idx
-        # Schedule thumbnail load
         thumb = row["thumbnail_path"]
         if thumb and os.path.exists(str(thumb)):
             signals = _ThumbSignals()
             signals.loaded.connect(self._on_thumb_loaded)
+            # Keep reference alive until the signal fires
+            self._pending_signals[pid] = signals
             task = _ThumbTask(pid, str(thumb), signals)
             self._pool.start(task)
 
-    def _on_thumb_loaded(self, photo_id: int, pixmap: QPixmap):
+    def _on_thumb_loaded(self, photo_id: int, img: QImage):
+        # Convert QImage → QPixmap here, safely on the main thread
+        px = QPixmap.fromImage(img)
+        self._pending_signals.pop(photo_id, None)
         idx = self._id_map.get(photo_id)
         if idx is not None and idx < self.count():
             item = self.item(idx)
             if item and item.data(Qt.ItemDataRole.UserRole) == photo_id:
-                item.setIcon(QIcon(pixmap))
+                item.setIcon(QIcon(px))
 
     def _on_activated(self, item: QListWidgetItem):
         pid = item.data(Qt.ItemDataRole.UserRole)

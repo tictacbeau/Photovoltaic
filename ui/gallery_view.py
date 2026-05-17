@@ -5,7 +5,7 @@ import sys
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QLineEdit, QComboBox, QMenu, QMessageBox, QInputDialog, QApplication)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject
 
 from ui.styles import btn_style
 from ui.photo_grid import PhotoGrid
@@ -25,7 +25,11 @@ class GalleryView(QWidget):
         self._total = 0
         self._current_query = ""
         self._current_person_id = None
-        self._all_rows = []   # current loaded rows
+        self._all_rows = []
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(300)
+        self._search_timer.timeout.connect(lambda: self._load_page(reset=True))
         self._build_ui()
         self._refresh_person_filter()
 
@@ -126,7 +130,7 @@ class GalleryView(QWidget):
     def _on_search_changed(self, text: str):
         self._current_query = text.strip()
         self._offset = 0
-        QTimer.singleShot(300, lambda: self._load_page(reset=True))
+        self._search_timer.start()  # restart the single debounce timer
 
     def _on_filter_changed(self):
         self._current_person_id = self.person_filter.currentData()
