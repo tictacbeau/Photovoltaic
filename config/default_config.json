@@ -1,0 +1,85 @@
+{
+  "vault": {
+    "location": "",
+    "folder_structure": "YYYY/MM",
+    "naming_pattern": "photo_{id:08d}{ext}",
+    "read_only_mode": false
+  },
+  "database": {
+    "location": "",
+    "filename": "photovault.db"
+  },
+  "thumbnails": {
+    "location": "",
+    "size": 256,
+    "quality": 85,
+    "format": "JPEG"
+  },
+  "scanner": {
+    "scan_folders": [],
+    "excluded_folders": [
+      "C:\\Windows",
+      "C:\\Program Files",
+      "C:\\Program Files (x86)",
+      "/proc",
+      "/sys",
+      "/dev"
+    ],
+    "supported_extensions": [
+      ".jpg", ".jpeg", ".png", ".heic", ".heif",
+      ".tiff", ".tif", ".bmp", ".gif",
+      ".cr2", ".nef", ".arw", ".dng", ".orf", ".rw2", ".pef"
+    ],
+    "background_scanning": true,
+    "auto_scan_on_start": false
+  },
+  "duplicates": {
+    "hash_exact": true,
+    "phash_enabled": true,
+    "phash_threshold": 10,
+    "auto_consolidate": false
+  },
+  "face_recognition": {
+    "enabled": false,
+    "min_confidence": 0.6,
+    "model": "hog",
+    "auto_detect_on_import": false
+  },
+  "deletion": {
+    "require_confirmation_phrase": true,
+    "confirmation_phrase": "I understand this will delete the master photo",
+    "quarantine_days": 30,
+    "require_pin": false,
+    "pin": ""
+  },
+  "backup": {
+    "auto_backup": false,
+    "backup_location": "",
+    "backup_interval_days": 7,
+    "include_vault": false
+  },
+  "ui": {
+    "theme": "dark",
+    "thumbnail_size": 200,
+    "items_per_page": 100,
+    "show_inbox_on_start": true,
+    "confirm_album_remove": true
+  },
+  "metadata": {
+    "write_sidecar_files": false,
+    "sidecar_format": "json",
+    "read_exif": true,
+    "custom_fields": [
+      {"name": "Event", "type": "text"},
+      {"name": "Project", "type": "text"},
+      {"name": "Status", "type": "select", "options": ["Needs Review", "Approved", "Archived"]},
+      {"name": "Do Not Delete", "type": "boolean"},
+      {"name": "Source", "type": "text"}
+    ]
+  },
+  "photo_classification": {
+    "enabled": true,
+    "classify_screenshots": true,
+    "classify_documents": true
+  }
+}
