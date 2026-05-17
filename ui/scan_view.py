@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
+from ui.styles import btn_style as _btn_style
 from PyQt6.QtGui import QFont, QColor
 
 from core.database import Database
@@ -378,25 +379,3 @@ def _common_photo_dirs() -> list[tuple[str, str]]:
     return [(label, path) for label, path in dirs if os.path.exists(path)]
 
 
-def _btn_style(primary: bool = False, danger: bool = False, small: bool = False) -> str:
-    if primary:
-        return (
-            "QPushButton { background: #2a6496; color: white; border: none; border-radius: 5px; "
-            "padding: 6px 16px; font-weight: bold; }"
-            "QPushButton:hover { background: #3a74a6; }"
-            "QPushButton:disabled { background: #333; color: #555; }"
-        )
-    if danger:
-        return (
-            "QPushButton { background: #5a2020; color: #e08080; border: none; border-radius: 5px; "
-            "padding: 6px 12px; }"
-            "QPushButton:hover { background: #7a3030; }"
-            "QPushButton:disabled { background: #333; color: #555; }"
-        )
-    base = "6px 8px" if not small else "3px 8px"
-    return (
-        f"QPushButton {{ background: #2a2a2a; color: #ccc; border: 1px solid #3a3a3a; "
-        f"border-radius: 5px; padding: {base}; }}"
-        "QPushButton:hover { background: #333; border-color: #555; }"
-        "QPushButton:disabled { background: #1e1e1e; color: #444; }"
-    )

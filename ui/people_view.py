@@ -13,6 +13,7 @@ from PyQt6.QtGui import QPixmap, QFont, QColor, QAction
 from core.database import Database
 from core.face_engine import FaceEngine, is_available
 from utils.image_utils import pil_to_qpixmap, placeholder_pixmap, load_thumbnail
+from ui.styles import btn_style as _btn_style, tab_btn_style as _tab_btn_style
 
 
 THUMB_SIZE = 96
@@ -590,34 +591,3 @@ def _clear_layout(layout):
             item.widget().deleteLater()
 
 
-def _btn_style(primary=False, danger=False, small=False, tiny=False) -> str:
-    pad = "2px 6px" if tiny else ("3px 8px" if small else "6px 12px")
-    if primary:
-        return (
-            f"QPushButton {{ background: #2a6496; color: white; border: none; border-radius: 4px; padding: {pad}; font-weight: bold; }}"
-            "QPushButton:hover { background: #3a74a6; }"
-            "QPushButton:disabled { background: #333; color: #555; }"
-        )
-    if danger:
-        return (
-            f"QPushButton {{ background: #5a2020; color: #e08080; border: none; border-radius: 4px; padding: {pad}; }}"
-            "QPushButton:hover { background: #7a3030; }"
-        )
-    return (
-        f"QPushButton {{ background: #242424; color: #bbb; border: 1px solid #333; border-radius: 4px; padding: {pad}; }}"
-        "QPushButton:hover { background: #2e2e2e; }"
-        "QPushButton:disabled { color: #444; }"
-    )
-
-
-def _tab_btn_style(active: bool = False) -> str:
-    if active:
-        return (
-            "QPushButton { background: #1e3a5f; color: #7ab8e0; border: 1px solid #2a5a8a; "
-            "border-radius: 4px; padding: 4px 14px; font-weight: bold; }"
-        )
-    return (
-        "QPushButton { background: #1a1a1a; color: #777; border: 1px solid #2a2a2a; "
-        "border-radius: 4px; padding: 4px 14px; }"
-        "QPushButton:hover { background: #222; color: #aaa; }"
-    )
