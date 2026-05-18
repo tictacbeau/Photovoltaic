@@ -495,7 +495,7 @@ def test_main_window_has_5_nav_items():
     try:
         app = setup_qt()
         from ui.main_window import MainWindow, _Sidebar
-        assert len(_Sidebar.NAV_ITEMS) == 5
+        assert len(_Sidebar.NAV_ITEMS) == 6
         ok("main_window_has_5_nav_items")
     except Exception as e:
         fail("main_window_has_5_nav_items", e)

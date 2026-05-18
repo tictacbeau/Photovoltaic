@@ -20,6 +20,7 @@ from ui.people_view import PeopleView
 from ui.gallery_view import GalleryView
 from ui.album_view import AlbumView
 from ui.duplicate_view import DuplicateView
+from ui.timeline_view import TimelineView
 
 log = logging.getLogger(__name__)
 
@@ -78,12 +79,14 @@ class MainWindow(QMainWindow):
         self.people_view = PeopleView(self.db, self.face_engine)
         self.scan_view = ScanView(self.db, self.thumb_dir)
         self.duplicate_view = DuplicateView(self.db)
+        self.timeline_view = TimelineView(self.db)
 
         self.stack.addWidget(self.gallery_view)    # index 0
         self.stack.addWidget(self.album_view)      # index 1
         self.stack.addWidget(self.people_view)     # index 2
         self.stack.addWidget(self.scan_view)       # index 3
         self.stack.addWidget(self.duplicate_view)  # index 4
+        self.stack.addWidget(self.timeline_view)   # index 5
 
         # Wire sidebar
         self.sidebar.nav_clicked.connect(self._navigate)
@@ -110,6 +113,8 @@ class MainWindow(QMainWindow):
             self.people_view.refresh()
         elif index == 4:
             self.duplicate_view.refresh()
+        elif index == 5:
+            self.timeline_view.refresh()
 
     # ── Events ────────────────────────────────────────────────────────────────
 
@@ -196,6 +201,7 @@ class _Sidebar(QFrame):
         ("◉ People", "People\nFaces & recognition", 2),
         ("⬤ Scan", "Scanner\nFind & catalog photos", 3),
         ("⧉ Dupes", "Duplicates\nReview duplicate photos", 4),
+        ("📅 Timeline", "Timeline\nBrowse by date", 5),
     ]
 
     def __init__(self, parent=None):

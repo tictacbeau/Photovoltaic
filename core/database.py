@@ -473,6 +473,31 @@ class Database:
                 pass
         return True
 
+    # ── Timeline ─────────────────────────────────────────────────────────────
+
+    def get_timeline_months(self) -> list:
+        """Return [{year_month, year, month, count}] sorted newest-first."""
+        return self._conn().execute(
+            "SELECT "
+            "  SUBSTR(COALESCE(exif_date, date_added), 1, 7) AS year_month, "
+            "  CAST(SUBSTR(COALESCE(exif_date, date_added), 1, 4) AS INTEGER) AS year, "
+            "  CAST(SUBSTR(COALESCE(exif_date, date_added), 6, 2) AS INTEGER) AS month, "
+            "  COUNT(*) AS count "
+            "FROM photos WHERE is_missing=0 "
+            "GROUP BY year_month "
+            "ORDER BY year_month DESC"
+        ).fetchall()
+
+    def get_photos_for_month(self, year: int, month: int) -> list:
+        """Return all photos whose effective date falls in year-month."""
+        ym = f"{year:04d}-{month:02d}"
+        return self._conn().execute(
+            "SELECT * FROM photos WHERE is_missing=0 "
+            "AND SUBSTR(COALESCE(exif_date, date_added), 1, 7) = ? "
+            "ORDER BY COALESCE(exif_date, date_added) ASC",
+            (ym,),
+        ).fetchall()
+
     # ── Stats ────────────────────────────────────────────────────────────────
 
     def get_stats(self) -> dict:
