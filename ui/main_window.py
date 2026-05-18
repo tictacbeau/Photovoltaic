@@ -15,6 +15,7 @@ from PyQt6.QtGui import QIcon, QFont, QColor
 
 from core.database import Database
 from core.face_engine import FaceEngine
+from ui.styles import btn_style
 from ui.scan_view import ScanView
 from ui.people_view import PeopleView
 from ui.gallery_view import GalleryView
@@ -99,9 +100,16 @@ class MainWindow(QMainWindow):
         # Wire scan completion → refresh people
         self.scan_view.scan_complete.connect(self._on_scan_complete)
 
+        # Export button in status bar
+        self._export_btn = QPushButton("⬆ Export…")
+        self._export_btn.setStyleSheet(btn_style(small=True))
+        self._export_btn.setFixedHeight(24)
+        self._export_btn.clicked.connect(self._open_export)
+
         # Status bar
         self.status = QStatusBar()
         self.status.setStyleSheet("QStatusBar { background: #111; color: #555; font-size: 11px; }")
+        self.status.addPermanentWidget(self._export_btn)
         self.setStatusBar(self.status)
 
     # ── Navigation ────────────────────────────────────────────────────────────
@@ -120,6 +128,11 @@ class MainWindow(QMainWindow):
             self.timeline_view.refresh()
         elif index == 6:
             self.smart_album_view.refresh()
+
+    def _open_export(self):
+        from ui.export_dialog import ExportDialog
+        dlg = ExportDialog(self.db, parent=self)
+        dlg.exec()
 
     # ── Events ────────────────────────────────────────────────────────────────
 
