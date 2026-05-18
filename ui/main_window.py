@@ -21,6 +21,7 @@ from ui.gallery_view import GalleryView
 from ui.album_view import AlbumView
 from ui.duplicate_view import DuplicateView
 from ui.timeline_view import TimelineView
+from ui.smart_album_view import SmartAlbumView
 
 log = logging.getLogger(__name__)
 
@@ -80,13 +81,15 @@ class MainWindow(QMainWindow):
         self.scan_view = ScanView(self.db, self.thumb_dir)
         self.duplicate_view = DuplicateView(self.db)
         self.timeline_view = TimelineView(self.db)
+        self.smart_album_view = SmartAlbumView(self.db)
 
-        self.stack.addWidget(self.gallery_view)    # index 0
-        self.stack.addWidget(self.album_view)      # index 1
-        self.stack.addWidget(self.people_view)     # index 2
-        self.stack.addWidget(self.scan_view)       # index 3
-        self.stack.addWidget(self.duplicate_view)  # index 4
-        self.stack.addWidget(self.timeline_view)   # index 5
+        self.stack.addWidget(self.gallery_view)      # index 0
+        self.stack.addWidget(self.album_view)        # index 1
+        self.stack.addWidget(self.people_view)       # index 2
+        self.stack.addWidget(self.scan_view)         # index 3
+        self.stack.addWidget(self.duplicate_view)    # index 4
+        self.stack.addWidget(self.timeline_view)     # index 5
+        self.stack.addWidget(self.smart_album_view)  # index 6
 
         # Wire sidebar
         self.sidebar.nav_clicked.connect(self._navigate)
@@ -115,6 +118,8 @@ class MainWindow(QMainWindow):
             self.duplicate_view.refresh()
         elif index == 5:
             self.timeline_view.refresh()
+        elif index == 6:
+            self.smart_album_view.refresh()
 
     # ── Events ────────────────────────────────────────────────────────────────
 
@@ -202,6 +207,7 @@ class _Sidebar(QFrame):
         ("⬤ Scan", "Scanner\nFind & catalog photos", 3),
         ("⧉ Dupes", "Duplicates\nReview duplicate photos", 4),
         ("📅 Timeline", "Timeline\nBrowse by date", 5),
+        ("✦ Smart", "Smart Albums\nAuto-generated collections", 6),
     ]
 
     def __init__(self, parent=None):

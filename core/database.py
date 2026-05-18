@@ -150,6 +150,15 @@ CREATE TABLE IF NOT EXISTS album_photos (
 );
 CREATE INDEX IF NOT EXISTS idx_album_photos_album ON album_photos(album_id);
 CREATE INDEX IF NOT EXISTS idx_album_photos_photo ON album_photos(photo_id);
+
+CREATE TABLE IF NOT EXISTS smart_albums (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    criteria    TEXT    NOT NULL DEFAULT '{}',
+    icon        TEXT    DEFAULT '✦',
+    sort_order  INTEGER DEFAULT 0,
+    is_builtin  INTEGER DEFAULT 0
+);
 """
 
 
@@ -236,6 +245,18 @@ class Database:
                     "EXISTS (SELECT 1 FROM album_photos ap WHERE ap.photo_id=p.id AND ap.album_id=?)"
                 )
                 params.append(filters["album_id"])
+            if filters.get("camera_model"):
+                conditions.append("p.camera_model = ?")
+                params.append(filters["camera_model"])
+            if filters.get("no_date"):
+                conditions.append("p.exif_date IS NULL")
+            if filters.get("unassigned_faces"):
+                conditions.append(
+                    "EXISTS (SELECT 1 FROM faces f WHERE f.photo_id=p.id "
+                    "AND f.person_id IS NULL AND f.is_ignored=0)"
+                )
+            if filters.get("has_camera"):
+                conditions.append("p.camera_model IS NOT NULL AND p.camera_model != ''")
         where = " AND ".join(conditions)
         sql = f"SELECT p.* FROM photos p WHERE {where} ORDER BY COALESCE(p.exif_date, p.date_added) DESC"
         return self._conn().execute(sql, params).fetchall()
@@ -472,6 +493,84 @@ class Database:
             except OSError:
                 pass
         return True
+
+    # ── Smart Albums ─────────────────────────────────────────────────────────
+
+    def get_all_smart_albums(self) -> list:
+        return self._conn().execute(
+            "SELECT * FROM smart_albums ORDER BY sort_order ASC, name ASC"
+        ).fetchall()
+
+    def create_smart_album(self, name: str, criteria: dict,
+                           icon: str = "✦", sort_order: int = 0,
+                           is_builtin: bool = False) -> int:
+        import json as _json
+        conn = self._conn()
+        cur = conn.execute(
+            "INSERT INTO smart_albums (name, criteria, icon, sort_order, is_builtin) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (name, _json.dumps(criteria), icon, sort_order, 1 if is_builtin else 0),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+    def update_smart_album(self, sa_id: int, name: str = None, criteria: dict = None):
+        import json as _json
+        conn = self._conn()
+        if name is not None:
+            conn.execute("UPDATE smart_albums SET name=? WHERE id=?", (name, sa_id))
+        if criteria is not None:
+            conn.execute("UPDATE smart_albums SET criteria=? WHERE id=?",
+                         (_json.dumps(criteria), sa_id))
+        conn.commit()
+
+    def delete_smart_album(self, sa_id: int):
+        conn = self._conn()
+        conn.execute("DELETE FROM smart_albums WHERE id=?", (sa_id,))
+        conn.commit()
+
+    def get_smart_album_photos(self, sa_id: int) -> list:
+        import json as _json
+        row = self._conn().execute(
+            "SELECT criteria FROM smart_albums WHERE id=?", (sa_id,)
+        ).fetchone()
+        if not row:
+            return []
+        try:
+            criteria = _json.loads(row["criteria"])
+        except Exception:
+            criteria = {}
+        return self.search_photos(
+            query=criteria.get("query", ""),
+            filters={k: v for k, v in criteria.items() if k != "query"} or None,
+        )
+
+    def ensure_builtin_smart_albums(self):
+        """Create the built-in smart albums if they don't exist yet."""
+        import json as _json
+        from datetime import datetime, date
+        conn = self._conn()
+        existing = {r["name"] for r in conn.execute(
+            "SELECT name FROM smart_albums WHERE is_builtin=1"
+        ).fetchall()}
+        now = datetime.now()
+        builtins = [
+            ("📅 This Month", {"date_from": f"{now.year}-{now.month:02d}-01",
+                                "date_to": f"{now.year}-{now.month:02d}-31"}, "📅", 0),
+            ("📆 This Year",  {"date_from": f"{now.year}-01-01",
+                                "date_to": f"{now.year}-12-31"}, "📆", 1),
+            ("👤 Unassigned Faces", {"unassigned_faces": True}, "👤", 2),
+            ("📷 Has Camera Info", {"has_camera": True}, "📷", 3),
+            ("❓ No Date",    {"no_date": True}, "❓", 4),
+        ]
+        for name, criteria, icon, order in builtins:
+            if name not in existing:
+                conn.execute(
+                    "INSERT INTO smart_albums (name, criteria, icon, sort_order, is_builtin) "
+                    "VALUES (?, ?, ?, ?, 1)",
+                    (name, _json.dumps(criteria), icon, order),
+                )
+        conn.commit()
 
     # ── Timeline ─────────────────────────────────────────────────────────────
 
