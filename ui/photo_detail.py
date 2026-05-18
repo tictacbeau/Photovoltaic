@@ -167,6 +167,35 @@ class PhotoDetailDialog(QDialog):
         add_btn.setFixedHeight(28)
         add_btn.clicked.connect(self._add_to_album)
         self.meta_layout.addWidget(add_btn)
+
+        # Tags
+        tags = self.db.get_tags_for_photo(photo_id)
+        self._add_section("🏷 Tags")
+        if tags:
+            for tag in tags:
+                tag_w = QWidget()
+                tlay = QHBoxLayout(tag_w)
+                tlay.setContentsMargins(0, 0, 0, 0)
+                lbl = QLabel(tag["name"])
+                lbl.setStyleSheet("color: #9ba; font-size: 11px;")
+                tlay.addWidget(lbl, 1)
+                rem_btn = QPushButton("✕")
+                rem_btn.setStyleSheet(btn_style(tiny=True, danger=True))
+                rem_btn.setFixedSize(20, 20)
+                tag_name = tag["name"]
+                rem_btn.clicked.connect(lambda checked, tn=tag_name: self._remove_tag(tn))
+                tlay.addWidget(rem_btn)
+                self.meta_layout.addWidget(tag_w)
+        else:
+            no_tags = QLabel("No tags")
+            no_tags.setStyleSheet("color: #444; font-size: 11px;")
+            self.meta_layout.addWidget(no_tags)
+
+        add_tag_btn = QPushButton("+ Add Tag")
+        add_tag_btn.setStyleSheet(btn_style(small=True))
+        add_tag_btn.setFixedHeight(28)
+        add_tag_btn.clicked.connect(self._add_tag)
+        self.meta_layout.addWidget(add_tag_btn)
         self.meta_layout.addStretch()
 
     def _remove_from_album(self, album_id: int):
@@ -184,6 +213,16 @@ class PhotoDetailDialog(QDialog):
             idx = names.index(item)
             self.db.add_photo_to_album(albums[idx]["id"], self._current_photo_id)
             self._load_photo(self._current_photo_id)
+
+    def _add_tag(self):
+        tag_name, ok = QInputDialog.getText(self, "Add Tag", "Tag name:")
+        if ok and tag_name.strip():
+            self.db.add_tag_to_photo(self._current_photo_id, tag_name.strip())
+            self._load_photo(self._current_photo_id)
+
+    def _remove_tag(self, tag_name: str):
+        self.db.remove_tag_from_photo(self._current_photo_id, tag_name)
+        self._load_photo(self._current_photo_id)
 
     def _clear_meta(self):
         while self.meta_layout.count():

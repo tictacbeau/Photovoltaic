@@ -159,6 +159,21 @@ CREATE TABLE IF NOT EXISTS smart_albums (
     sort_order  INTEGER DEFAULT 0,
     is_builtin  INTEGER DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS tags (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    name    TEXT    NOT NULL UNIQUE COLLATE NOCASE
+);
+
+CREATE TABLE IF NOT EXISTS photo_tags (
+    photo_id    INTEGER NOT NULL,
+    tag_id      INTEGER NOT NULL,
+    PRIMARY KEY (photo_id, tag_id),
+    FOREIGN KEY (photo_id) REFERENCES photos(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id)   REFERENCES tags(id)   ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_photo_tags_photo ON photo_tags(photo_id);
+CREATE INDEX IF NOT EXISTS idx_photo_tags_tag   ON photo_tags(tag_id);
 """
 
 
@@ -257,6 +272,13 @@ class Database:
                 )
             if filters.get("has_camera"):
                 conditions.append("p.camera_model IS NOT NULL AND p.camera_model != ''")
+            if filters.get("tag"):
+                conditions.append(
+                    "EXISTS (SELECT 1 FROM photo_tags pt "
+                    "JOIN tags t ON t.id=pt.tag_id "
+                    "WHERE pt.photo_id=p.id AND t.name=? COLLATE NOCASE)"
+                )
+                params.append(filters["tag"])
         where = " AND ".join(conditions)
         sql = f"SELECT p.* FROM photos p WHERE {where} ORDER BY COALESCE(p.exif_date, p.date_added) DESC"
         return self._conn().execute(sql, params).fetchall()
@@ -570,6 +592,68 @@ class Database:
                     "VALUES (?, ?, ?, ?, 1)",
                     (name, _json.dumps(criteria), icon, order),
                 )
+        conn.commit()
+
+    # ── Tags ─────────────────────────────────────────────────────────────────
+
+    def get_or_create_tag(self, name: str) -> int:
+        name = name.strip()
+        conn = self._conn()
+        row = conn.execute("SELECT id FROM tags WHERE name=? COLLATE NOCASE", (name,)).fetchone()
+        if row:
+            return row["id"]
+        cur = conn.execute("INSERT INTO tags (name) VALUES (?)", (name,))
+        conn.commit()
+        return cur.lastrowid
+
+    def add_tag_to_photo(self, photo_id: int, tag_name: str):
+        tag_id = self.get_or_create_tag(tag_name)
+        conn = self._conn()
+        conn.execute(
+            "INSERT OR IGNORE INTO photo_tags (photo_id, tag_id) VALUES (?, ?)",
+            (photo_id, tag_id),
+        )
+        conn.commit()
+
+    def remove_tag_from_photo(self, photo_id: int, tag_name: str):
+        conn = self._conn()
+        conn.execute(
+            "DELETE FROM photo_tags WHERE photo_id=? "
+            "AND tag_id=(SELECT id FROM tags WHERE name=? COLLATE NOCASE)",
+            (photo_id, tag_name),
+        )
+        conn.commit()
+        # Clean up orphan tag
+        conn.execute(
+            "DELETE FROM tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM photo_tags)"
+        )
+        conn.commit()
+
+    def get_tags_for_photo(self, photo_id: int) -> list:
+        return self._conn().execute(
+            "SELECT t.* FROM tags t "
+            "JOIN photo_tags pt ON t.id=pt.tag_id "
+            "WHERE pt.photo_id=? ORDER BY t.name ASC",
+            (photo_id,),
+        ).fetchall()
+
+    def get_all_tags(self) -> list:
+        """Return [{id, name, count}] ordered by count desc."""
+        return self._conn().execute(
+            "SELECT t.id, t.name, COUNT(pt.photo_id) as count "
+            "FROM tags t LEFT JOIN photo_tags pt ON t.id=pt.tag_id "
+            "GROUP BY t.id ORDER BY count DESC, t.name ASC"
+        ).fetchall()
+
+    def rename_tag(self, tag_id: int, new_name: str):
+        conn = self._conn()
+        conn.execute("UPDATE tags SET name=? WHERE id=?", (new_name.strip(), tag_id))
+        conn.commit()
+
+    def delete_tag(self, tag_id: int):
+        conn = self._conn()
+        conn.execute("DELETE FROM photo_tags WHERE tag_id=?", (tag_id,))
+        conn.execute("DELETE FROM tags WHERE id=?", (tag_id,))
         conn.commit()
 
     # ── Timeline ─────────────────────────────────────────────────────────────

@@ -916,7 +916,7 @@ def test_main_window_init():
         try:
             mw = MainWindow(app_dir=tmp)
             assert mw is not None
-            assert mw.stack.count() == 7  # gallery, albums, people, scan, duplicates, timeline, smart
+            assert mw.stack.count() == 8  # gallery, albums, people, scan, dupes, timeline, smart, tags
             ok("main_window_init_4_views")
         finally:
             shutil.rmtree(tmp)
@@ -962,7 +962,7 @@ def test_main_window_sidebar_count():
         tmp = tempfile.mkdtemp()
         try:
             mw = MainWindow(app_dir=tmp)
-            assert len(mw.sidebar._buttons) == 7
+            assert len(mw.sidebar._buttons) == 8
             ok("main_window_sidebar_4_buttons")
         finally:
             shutil.rmtree(tmp)
