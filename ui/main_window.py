@@ -19,6 +19,7 @@ from ui.scan_view import ScanView
 from ui.people_view import PeopleView
 from ui.gallery_view import GalleryView
 from ui.album_view import AlbumView
+from ui.duplicate_view import DuplicateView
 
 log = logging.getLogger(__name__)
 
@@ -76,11 +77,13 @@ class MainWindow(QMainWindow):
         self.album_view = AlbumView(self.db)
         self.people_view = PeopleView(self.db, self.face_engine)
         self.scan_view = ScanView(self.db, self.thumb_dir)
+        self.duplicate_view = DuplicateView(self.db)
 
-        self.stack.addWidget(self.gallery_view)  # index 0
-        self.stack.addWidget(self.album_view)    # index 1
-        self.stack.addWidget(self.people_view)   # index 2
-        self.stack.addWidget(self.scan_view)     # index 3
+        self.stack.addWidget(self.gallery_view)    # index 0
+        self.stack.addWidget(self.album_view)      # index 1
+        self.stack.addWidget(self.people_view)     # index 2
+        self.stack.addWidget(self.scan_view)       # index 3
+        self.stack.addWidget(self.duplicate_view)  # index 4
 
         # Wire sidebar
         self.sidebar.nav_clicked.connect(self._navigate)
@@ -105,6 +108,8 @@ class MainWindow(QMainWindow):
             self.album_view.refresh()
         elif index == 2:
             self.people_view.refresh()
+        elif index == 4:
+            self.duplicate_view.refresh()
 
     # ── Events ────────────────────────────────────────────────────────────────
 
@@ -190,6 +195,7 @@ class _Sidebar(QFrame):
         ("🗂 Albums", "Albums\nOrganize into collections", 1),
         ("◉ People", "People\nFaces & recognition", 2),
         ("⬤ Scan", "Scanner\nFind & catalog photos", 3),
+        ("⧉ Dupes", "Duplicates\nReview duplicate photos", 4),
     ]
 
     def __init__(self, parent=None):

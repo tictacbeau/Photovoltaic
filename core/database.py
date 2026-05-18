@@ -430,6 +430,49 @@ class Database:
             (group_id,),
         ).fetchall()
 
+    def set_duplicate_master(self, group_id: int, photo_id: int):
+        conn = self._conn()
+        conn.execute("UPDATE duplicate_members SET is_master=0 WHERE group_id=?", (group_id,))
+        conn.execute(
+            "UPDATE duplicate_members SET is_master=1 WHERE group_id=? AND photo_id=?",
+            (group_id, photo_id),
+        )
+        conn.execute(
+            "UPDATE duplicate_groups SET master_photo_id=? WHERE id=?",
+            (photo_id, group_id),
+        )
+        conn.commit()
+
+    def dismiss_duplicate_group(self, group_id: int):
+        """Remove the group (and its membership rows) without deleting photos."""
+        conn = self._conn()
+        conn.execute("DELETE FROM duplicate_members WHERE group_id=?", (group_id,))
+        conn.execute("DELETE FROM duplicate_groups WHERE id=?", (group_id,))
+        conn.commit()
+
+    def delete_photo(self, photo_id: int, delete_file: bool = False) -> bool:
+        """Delete photo record from DB; optionally delete file from disk."""
+        conn = self._conn()
+        row = conn.execute("SELECT file_path FROM photos WHERE id=?", (photo_id,)).fetchone()
+        if not row:
+            return False
+        path = row["file_path"]
+        conn.execute("DELETE FROM faces WHERE photo_id=?", (photo_id,))
+        conn.execute("DELETE FROM duplicate_members WHERE photo_id=?", (photo_id,))
+        conn.execute("DELETE FROM album_photos WHERE photo_id=?", (photo_id,))
+        conn.execute("UPDATE albums SET cover_photo_id=NULL WHERE cover_photo_id=?", (photo_id,))
+        conn.execute("UPDATE duplicate_groups SET master_photo_id=NULL WHERE master_photo_id=?", (photo_id,))
+        conn.execute("DELETE FROM photos WHERE id=?", (photo_id,))
+        conn.commit()
+        if delete_file:
+            try:
+                import os
+                if os.path.exists(path):
+                    os.remove(path)
+            except OSError:
+                pass
+        return True
+
     # ── Stats ────────────────────────────────────────────────────────────────
 
     def get_stats(self) -> dict:
